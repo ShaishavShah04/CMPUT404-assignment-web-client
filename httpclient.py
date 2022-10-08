@@ -43,9 +43,9 @@ class HTTPClient(object):
                 assert host != None
                 assert port != None
                 port = int(port)
-                return host, port, o.path if o.path != "" else "/" 
+                return host, port, o.path if o.path else "/" 
             else:
-                return o.netloc, 80, o.path if o.path != "" else "/"
+                return o.netloc, 80, o.path if o.path else "/"
         except:
             return None, None, None
     
@@ -100,19 +100,15 @@ class HTTPClient(object):
         requestStr = ""
         requestStr += "GET {} HTTP/1.1\r\n".format(reqPath)
         requestStr += "Host: {}\r\n".format(host)
-        requestStr += "Accept: */*\r\n"
         requestStr += "Connection: close\r\n"
         requestStr += "\r\n"
         self.sendall(requestStr)
-
-        # print(requestStr)
 
         # Get results
         res = self.recvall(self.socket)
         self.socket.close()
 
         # Parse results 
-        # print(res)
         resCode = self.get_code(res)
         resBody = self.get_body(res)
         resHeaders = self.get_headers(res)
@@ -122,11 +118,39 @@ class HTTPClient(object):
 
     def POST(self, url, args=None):
         # Parse url
-        host, port = self.get_host_port(url)
-        if host is None:
-            return HTTPResponse(404, "")
+        host, port, reqPath = self.get_host_port_path(url)
+        if host is None: return HTTPResponse(404)
+        
+        # Connect
+        try:
+            self.connect(host, port)
+        except:
+            return HTTPResponse(404)
 
-        return HTTPResponse(code, body)
+        parsedArgs = "" if not args else urllib.parse.urlencode(args)
+        # Send POST REQUEST
+        requestStr = ""
+        requestStr += "POST {} HTTP/1.1\r\n".format(reqPath)
+        requestStr += "Host: {}\r\n".format(host)
+        requestStr += "Content-Type: application/x-www-form-urlencoded\r\n"
+        requestStr += "Content-Length: {}\r\n".format(len(parsedArgs))
+        requestStr += "Connection: close\r\n"
+        requestStr += "\r\n"
+        requestStr += parsedArgs
+
+        self.sendall(requestStr)
+
+        # # # Get results
+        res = self.recvall(self.socket)
+        self.socket.close()
+
+        # # Parse results 
+        resCode = self.get_code(res)
+        resBody = self.get_body(res)
+        resHeaders = self.get_headers(res)
+
+        return HTTPResponse(resCode, resBody)
+
 
     def command(self, url, command="GET", args=None):
         if (command == "POST"):
