@@ -31,23 +31,40 @@ class HTTPResponse(object):
     def __init__(self, code=200, body=""):
         self.code = code
         self.body = body
+    def __str__(self):
+        return f"Code: {self.code}\n{self.body}"
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
-
+    def get_host_port_path(self,url):
+        try:
+            o = urllib.parse.urlparse(url)
+            if ":" in o.netloc:
+                host, port = o.netloc.split(":")
+                assert host != None
+                assert port != None
+                port = int(port)
+                return host, port, o.path if o.path != "" else "/" 
+            else:
+                return o.netloc, 80, o.path if o.path != "" else "/"
+        except:
+            return None, None, None
+    
     def connect(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
         return None
 
     def get_code(self, data):
-        return None
+        try:
+            return int(data.split(" ")[1])
+        except:
+            return 500
 
     def get_headers(self,data):
-        return None
+        return data.split("\r\n\r\n")[0]
 
     def get_body(self, data):
-        return None
+        return data.split("\r\n\r\n")[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -68,13 +85,47 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
-        return HTTPResponse(code, body)
+        
+        # Parse url
+        host, port, reqPath = self.get_host_port_path(url)
+        if host is None: return HTTPResponse(404)
+        
+        # Connect
+        try:
+            self.connect(host, port)
+        except:
+            return HTTPResponse(404)
+        
+        # Send GET REQUEST
+        requestStr = ""
+        requestStr += "GET {} HTTP/1.1\r\n".format(reqPath)
+        requestStr += "Host: {}\r\n".format(host)
+        requestStr += "Accept: */*\r\n"
+        requestStr += "Connection: close\r\n"
+        requestStr += "\r\n"
+        self.sendall(requestStr)
+
+        # print(requestStr)
+
+        # Get results
+        res = self.recvall(self.socket)
+        self.socket.close()
+
+        # Parse results 
+        # print(res)
+        resCode = self.get_code(res)
+        resBody = self.get_body(res)
+        resHeaders = self.get_headers(res)
+
+
+        return HTTPResponse(resCode, resBody)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        # Parse url
+        host, port = self.get_host_port(url)
+        if host is None:
+            return HTTPResponse(404, "")
+
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
